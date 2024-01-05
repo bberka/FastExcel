@@ -3,33 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Threading;
 using System.Xml;
 using System.Xml.Linq;
 
 namespace FastExcel
 {
   /// <summary>
-  /// Read and update xl/sharedStrings.xml file
+  ///   Read and update xl/sharedStrings.xml file
   /// </summary>
   public class SharedStrings
   {
-    //A dictionary is a lot faster than a list
-    private Dictionary<int, string> StringDictionary { get; set; }
-
-    private bool SharedStringsExists { get; set; }
-    private ZipArchive ZipArchive { get; set; }
-
-    /// <summary>
-    /// Is there any pending changes
-    /// </summary>
-    public bool PendingChanges { get; private set; }
-
-    /// <summary>
-    /// Is in read/write mode
-    /// </summary>
-    public bool ReadWriteMode { get; set; }
-
     internal SharedStrings(ZipArchive archive) {
       ZipArchive = archive;
       SharedStringsExists = false;
@@ -43,9 +26,7 @@ namespace FastExcel
       }
 
       using (var stream = ZipArchive.GetEntry("xl/sharedStrings.xml")?.Open()) {
-        if (stream == null) {
-          return;
-        }
+        if (stream == null) return;
 
         var document = XDocument.Load(stream) ?? throw new Exception("Failed to load sharedStrings.xml");
 
@@ -56,18 +37,30 @@ namespace FastExcel
          * NOTE: sharedStrings.xml can contain duplicate strings, but the index is always unique
          * so we don't care about duplicated and just add them to the dictionary by index
          */
-        foreach (var currentString in stringList) {
-          StringDictionary.Add(i++, currentString);
-        }
+        foreach (var currentString in stringList) StringDictionary.Add(i++, currentString);
       }
     }
+
+    //A dictionary is a lot faster than a list
+    private Dictionary<int, string> StringDictionary { get; }
+
+    private bool SharedStringsExists { get; }
+    private ZipArchive ZipArchive { get; }
+
+    /// <summary>
+    ///   Is there any pending changes
+    /// </summary>
+    public bool PendingChanges { get; private set; }
+
+    /// <summary>
+    ///   Is in read/write mode
+    /// </summary>
+    public bool ReadWriteMode { get; set; }
 
     internal int AddString(string stringValue) {
       var nextIndex = StringDictionary.Count;
       StringDictionary.Add(nextIndex, stringValue);
-      if (!ReadWriteMode) {
-        return -1;
-      }
+      if (!ReadWriteMode) return -1;
 
       PendingChanges = true;
       return nextIndex;
@@ -75,9 +68,7 @@ namespace FastExcel
 
     internal void Write() {
       // Only update if changes were made
-      if (!PendingChanges) {
-        return;
-      }
+      if (!PendingChanges) return;
 
       StreamWriter streamWriter = null;
       try {
@@ -98,9 +89,7 @@ namespace FastExcel
         streamWriter.Write(textToWrite);
 
         // Add Rows
-        foreach (var stringValue in StringDictionary) {
-          streamWriter.Write($"<si><t>{XmlConvert.EncodeName(stringValue.Value)}</t></si>");
-        }
+        foreach (var stringValue in StringDictionary) streamWriter.Write($"<si><t>{XmlConvert.EncodeName(stringValue.Value)}</t></si>");
 
         //Add Footers
         streamWriter.Write("</sst>");
@@ -113,9 +102,7 @@ namespace FastExcel
     }
 
     internal string GetString(string position) {
-      if (int.TryParse(position, out int pos)) {
-        return GetString(pos + 1);
-      }
+      if (int.TryParse(position, out var pos)) return GetString(pos + 1);
 
       // TODO: should I throw an error? this is a corrupted excel document
       throw new Exception("Corrupted excel document position: " + position);
